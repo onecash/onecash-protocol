@@ -9,11 +9,11 @@ import './owner/Operator.sol';
 import './utils/ContractGuard.sol';
 import './interfaces/IBasisAsset.sol';
 
-contract ShareWrapper {
+contract ShareLpWrapper {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    IERC20 public share;
+    IERC20 public shareLpt;
 
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
@@ -29,7 +29,7 @@ contract ShareWrapper {
     function stake(uint256 amount) public virtual {
         _totalSupply = _totalSupply.add(amount);
         _balances[msg.sender] = _balances[msg.sender].add(amount);
-        share.safeTransferFrom(msg.sender, address(this), amount);
+        shareLpt.safeTransferFrom(msg.sender, address(this), amount);
     }
 
     function withdraw(uint256 amount) public virtual {
@@ -40,21 +40,29 @@ contract ShareWrapper {
         );
         _totalSupply = _totalSupply.sub(amount);
         _balances[msg.sender] = directorShare.sub(amount);
-        share.safeTransfer(msg.sender, amount);
+        shareLpt.safeTransfer(msg.sender, amount);
     }
 }
 
-contract Boardroom is ShareWrapper, ContractGuard, Operator {
+contract Boardroom is ShareLpWrapper, ContractGuard, Operator {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
     using Safe112 for uint112;
+
+    /* ========== PARAMETERS =============== */
+
+    uint256 public withdrawLockupEpochs = 3;
+    uint256 public rewardLockupEpochs = 1;
+    uint256 public epochAlignTimestamp = 1608883200;
+    uint256 public epochPeriod = 28800;
 
     /* ========== DATA STRUCTURES ========== */
 
     struct Boardseat {
         uint256 lastSnapshotIndex;
         uint256 rewardEarned;
+        uint256 epochTimerStart;
     }
 
     struct BoardSnapshot {
@@ -72,9 +80,9 @@ contract Boardroom is ShareWrapper, ContractGuard, Operator {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(IERC20 _cash, IERC20 _share) public {
+    constructor(IERC20 _cash, IERC20 _shareLpt) public {
         cash = _cash;
-        share = _share;
+        shareLpt = _shareLpt;
 
         BoardSnapshot memory genesisSnapshot = BoardSnapshot({
             time: block.number,
@@ -131,6 +139,27 @@ contract Boardroom is ShareWrapper, ContractGuard, Operator {
         return boardHistory[getLastSnapshotIndexOf(director)];
     }
 
+    function getCurrentEpochTimestamp() public view returns(uint256) {
+        return epochAlignTimestamp.add(
+                block.timestamp
+                .sub(epochAlignTimestamp)
+                .div(epochPeriod)
+                .mul(epochPeriod)
+            );
+    }
+
+    function canWithdraw(address director) public view returns (bool) {
+        return directors[director].epochTimerStart.add(
+                withdrawLockupEpochs.mul(epochPeriod)
+            ) <= getCurrentEpochTimestamp();
+    }
+
+    function canClaimReward(address director) public view returns (bool) {
+        return directors[director].epochTimerStart.add(
+                rewardLockupEpochs.mul(epochPeriod)
+            ) <= getCurrentEpochTimestamp();
+    }
+
     // =========== Director getters
 
     function rewardPerShare() public view returns (uint256) {
@@ -147,6 +176,34 @@ contract Boardroom is ShareWrapper, ContractGuard, Operator {
             );
     }
 
+    /* ========== GOVERNANCE ================== */
+
+    function setLockUp(
+        uint256 _withdrawLockupEpochs, 
+        uint256 _rewardLockupEpochs,
+        uint256 _epochAlignTimestamp, 
+        uint256 _epochPeriod
+    ) 
+        external 
+        onlyOperator 
+    {
+        require(
+            _withdrawLockupEpochs >= _rewardLockupEpochs 
+            && _withdrawLockupEpochs <= 21, 
+            "LockupEpochs: out of range"
+        );
+        require(_epochPeriod <= 1 days, "EpochPeriod: out of range");
+        require(
+            _epochAlignTimestamp.add(_epochPeriod.mul(2)) < block.timestamp, 
+            "EpochAlignTimestamp: too late"
+        ); 
+        withdrawLockupEpochs = _withdrawLockupEpochs;
+        rewardLockupEpochs = _rewardLockupEpochs;
+        epochAlignTimestamp = _epochAlignTimestamp;
+        epochPeriod = _epochPeriod;
+    }
+
+
     /* ========== MUTATIVE FUNCTIONS ========== */
 
     function stake(uint256 amount)
@@ -157,6 +214,7 @@ contract Boardroom is ShareWrapper, ContractGuard, Operator {
     {
         require(amount > 0, 'Boardroom: Cannot stake 0');
         super.stake(amount);
+        directors[msg.sender].epochTimerStart = getCurrentEpochTimestamp();
         emit Staked(msg.sender, amount);
     }
 
@@ -168,6 +226,8 @@ contract Boardroom is ShareWrapper, ContractGuard, Operator {
         updateReward(msg.sender)
     {
         require(amount > 0, 'Boardroom: Cannot withdraw 0');
+        require(canWithdraw(msg.sender), "Boardroom: still in withdraw lockup");
+
         super.withdraw(amount);
         emit Withdrawn(msg.sender, amount);
     }
@@ -180,6 +240,7 @@ contract Boardroom is ShareWrapper, ContractGuard, Operator {
     function claimReward() public updateReward(msg.sender) {
         uint256 reward = directors[msg.sender].rewardEarned;
         if (reward > 0) {
+            require(canClaimReward(msg.sender), "Boardroom: still in claimReward lockup");
             directors[msg.sender].rewardEarned = 0;
             cash.safeTransfer(msg.sender, reward);
             emit RewardPaid(msg.sender, reward);
