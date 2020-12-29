@@ -39,7 +39,8 @@ contract Treasury is ContractGuard, Epoch {
     address public cash;
     address public bond;
     address public share;
-    address public boardroom;
+    address public shareBoardroom;
+    address public lpBoardroom;
 
     address public bondOracle;
     address public seigniorageOracle;
@@ -60,7 +61,8 @@ contract Treasury is ContractGuard, Epoch {
         address _share,
         address _bondOracle,
         address _seigniorageOracle,
-        address _boardroom,
+        address _shareBoardroom,
+        address _lpBoardroom,
         address _fund,
         uint256 _startTime
     ) public Epoch(8 hours, _startTime, 0) {
@@ -70,7 +72,9 @@ contract Treasury is ContractGuard, Epoch {
         bondOracle = _bondOracle;
         seigniorageOracle = _seigniorageOracle;
 
-        boardroom = _boardroom;
+        shareBoardroom = _shareBoardroom;
+        lpBoardroom = _lpBoardroom;
+
         fund = _fund;
 
         cashPriceOne = 10**18;
@@ -92,7 +96,8 @@ contract Treasury is ContractGuard, Epoch {
             IBasisAsset(cash).operator() == address(this) &&
                 IBasisAsset(bond).operator() == address(this) &&
                 IBasisAsset(share).operator() == address(this) &&
-                Operator(boardroom).operator() == address(this),
+                Operator(shareBoardroom).operator() == address(this) &&
+                Operator(lpBoardroom).operator() == address(this),
             'Treasury: need more permission'
         );
 
@@ -288,8 +293,10 @@ contract Treasury is ContractGuard, Epoch {
         // boardroom
         uint256 boardroomReserve = seigniorage.sub(treasuryReserve);
         if (boardroomReserve > 0) {
-            IERC20(cash).safeApprove(boardroom, boardroomReserve);
-            IBoardroom(boardroom).allocateSeigniorage(boardroomReserve);
+            IERC20(cash).safeApprove(shareBoardroom, boardroomReserve.div(2));
+            IBoardroom(shareBoardroom).allocateSeigniorage(boardroomReserve.div(2));
+            IERC20(cash).safeApprove(lpBoardroom, boardroomReserve.div(2));
+            IBoardroom(lpBoardroom).allocateSeigniorage(boardroomReserve.div(2));
             emit BoardroomFunded(now, boardroomReserve);
         }
     }
