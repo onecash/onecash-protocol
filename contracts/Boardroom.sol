@@ -9,11 +9,11 @@ import './owner/Operator.sol';
 import './utils/ContractGuard.sol';
 import './interfaces/IBasisAsset.sol';
 
-contract ShareLpWrapper {
+contract ShareWrapper {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    IERC20 public shareLpt;
+    IERC20 public share;
 
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
@@ -29,7 +29,7 @@ contract ShareLpWrapper {
     function stake(uint256 amount) public virtual {
         _totalSupply = _totalSupply.add(amount);
         _balances[msg.sender] = _balances[msg.sender].add(amount);
-        shareLpt.safeTransferFrom(msg.sender, address(this), amount);
+        share.safeTransferFrom(msg.sender, address(this), amount);
     }
 
     function withdraw(uint256 amount) public virtual {
@@ -40,11 +40,11 @@ contract ShareLpWrapper {
         );
         _totalSupply = _totalSupply.sub(amount);
         _balances[msg.sender] = directorShare.sub(amount);
-        shareLpt.safeTransfer(msg.sender, amount);
+        share.safeTransfer(msg.sender, amount);
     }
 }
 
-contract Boardroom is ShareLpWrapper, ContractGuard, Operator {
+contract Boardroom is ShareWrapper, ContractGuard, Operator {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -52,7 +52,7 @@ contract Boardroom is ShareLpWrapper, ContractGuard, Operator {
 
     /* ========== PARAMETERS =============== */
 
-    uint256 public withdrawLockupEpochs = 3;
+    uint256 public withdrawLockupEpochs = 4;
     uint256 public rewardLockupEpochs = 1;
     uint256 public epochAlignTimestamp = 1608883200;
     uint256 public epochPeriod = 28800;
@@ -80,9 +80,9 @@ contract Boardroom is ShareLpWrapper, ContractGuard, Operator {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(IERC20 _cash, IERC20 _shareLpt) public {
+    constructor(IERC20 _cash, IERC20 _share) public {
         cash = _cash;
-        shareLpt = _shareLpt;
+        share = _share;
 
         BoardSnapshot memory genesisSnapshot = BoardSnapshot({
             time: block.number,
@@ -148,16 +148,24 @@ contract Boardroom is ShareLpWrapper, ContractGuard, Operator {
             );
     }
 
-    function canWithdraw(address director) public view returns (bool) {
+    function getCanWithdrawTime(address director) public view returns(uint256) {
         return directors[director].epochTimerStart.add(
-                withdrawLockupEpochs.mul(epochPeriod)
-            ) <= getCurrentEpochTimestamp();
+                    withdrawLockupEpochs.mul(epochPeriod)
+                );
+    }
+
+    function getCanClaimTime(address director) public view returns(uint256) {
+        return directors[director].epochTimerStart.add(
+                    rewardLockupEpochs.mul(epochPeriod)
+                );
+    }
+
+    function canWithdraw(address director) public view returns (bool) {
+        return getCanWithdrawTime(director) <= getCurrentEpochTimestamp();
     }
 
     function canClaimReward(address director) public view returns (bool) {
-        return directors[director].epochTimerStart.add(
-                rewardLockupEpochs.mul(epochPeriod)
-            ) <= getCurrentEpochTimestamp();
+        return getCanClaimTime(director) <= getCurrentEpochTimestamp();
     }
 
     // =========== Director getters
