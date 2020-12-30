@@ -52,7 +52,7 @@ contract ShareBoardroom is ShareWrapper, ContractGuard, Operator {
 
     /* ========== PARAMETERS =============== */
 
-    uint256 public withdrawLockupEpochs = 3;
+    uint256 public withdrawLockupEpochs = 4;
     uint256 public rewardLockupEpochs = 1;
     uint256 public epochAlignTimestamp = 1608883200;
     uint256 public epochPeriod = 28800;
