@@ -251,8 +251,11 @@ contract Treasury is ContractGuard, Epoch {
             amount,
             accumulatedDebt.mul(1e18).mul(bondPriceOnONC)
         );
+        uint256 mintBondAmount = burnAmount.mul(1e18).div(bondPriceOnONC);
+
         IBasisAsset(cash).burnFrom(msg.sender, burnAmount);
-        IBasisAsset(bond).mint(msg.sender, burnAmount.mul(1e18).div(bondPriceOnONC));
+        IBasisAsset(bond).mint(msg.sender, mintBondAmount);
+        accumulatedDebt = accumulatedDebt.sub(mintBondAmount);
         _updateCashPrice();
 
         emit BoughtBonds(msg.sender, burnAmount);
