@@ -271,10 +271,6 @@ contract Treasury is ContractGuard, Epoch {
             cashPrice > cashPriceCeiling, // price > $1.05
             'Treasury: cashPrice not eligible for bond purchase'
         );
-        require(
-            IERC20(cash).balanceOf(address(this)) >= amount,
-            'Treasury: treasury has no more budget'
-        );
         uint256 redeemAmount = Math.min(accumulatedSeigniorage, amount);
         require(redeemAmount > 0, 'Treasury: cannot redeem bonds with zero amount');
 
