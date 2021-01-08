@@ -267,11 +267,6 @@ contract Treasury is ContractGuard, Epoch {
         checkStartTime
         checkOperator
     {
-        uint256 cashPrice = _getCashPrice(oracle);
-        require(
-            cashPrice > cashPriceCeiling, // price > $1.05
-            'Treasury: cashPrice not eligible for bond purchase'
-        );
         uint256 redeemAmount = Math.min(accumulatedSeigniorage, amount);
         require(redeemAmount > 0, 'Treasury: cannot redeem bonds with zero amount');
 
@@ -320,14 +315,16 @@ contract Treasury is ContractGuard, Epoch {
             }
         }
 
+        // clear the debt
+        if (cashPrice > cashPriceFloor) {
+            accumulatedDebt = 0;    
+            bondPriceOnONC = 10**18;
+        }
+
         if (cashPrice <= cashPriceCeiling) {
             return; // just advance epoch instead revert
         }
         
-        // clear the debt
-        accumulatedDebt = 0;    
-        bondPriceOnONC = 10**18;
-
         uint256 percentage = cashPrice.sub(cashPriceOne);
         uint256 seigniorage = cashSupply.mul(percentage).div(1e18);
         uint256 maxSeigniorage = cashSupply.mul(maxInflationRate).div(100);
