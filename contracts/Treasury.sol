@@ -299,7 +299,7 @@ contract Treasury is ContractGuard, Epoch {
 
         // bond reward
         if (cashPrice <= cashPriceBondReward) {
-            uint256 rewardAmount = IERC20(cash).totalSupply().div(100);
+            uint256 rewardAmount = IERC20(bond).totalSupply().div(100);
             IBasisAsset(bond).mint(bondRewardPool, rewardAmount);
             IONBRewardPool(bondRewardPool).notifyRewardAmount(rewardAmount);
             emit BondReward(block.timestamp, rewardAmount);
