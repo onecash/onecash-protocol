@@ -267,6 +267,12 @@ contract Treasury is ContractGuard, Epoch {
         checkStartTime
         checkOperator
     {
+        uint256 cashPrice = _getCashPrice(oracle);
+        require(
+            cashPrice > cashPriceOne, // price > $1
+            'Treasury: cashPrice not eligible for bond redeem'
+        );
+
         uint256 redeemAmount = Math.min(accumulatedSeigniorage, amount);
         require(redeemAmount > 0, 'Treasury: cannot redeem bonds with zero amount');
 
