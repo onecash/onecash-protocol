@@ -231,17 +231,14 @@ contract Treasury is ContractGuard, Epoch {
         try IOracle(oracle).update()  {} catch {}
     }
 
-    function buyBonds(uint256 amount, uint256 targetPrice)
+    function buyBonds(uint256 amount)
         external
         onlyOneBlock
         checkMigration
         checkStartTime
         checkOperator
     {
-        require(amount > 0, 'Treasury: cannot purchase bonds with zero amount');
-
         uint256 cashPrice = _getCashPrice(oracle);
-        require(cashPrice == targetPrice, 'Treasury: cash price moved');
         require(
             cashPrice < cashPriceOne, // price < $1
             'Treasury: cashPrice not eligible for bond purchase'
@@ -251,8 +248,9 @@ contract Treasury is ContractGuard, Epoch {
             amount,
             accumulatedDebt.mul(1e18).mul(bondPriceOnONC)
         );
-        uint256 mintBondAmount = burnAmount.mul(1e18).div(bondPriceOnONC);
+        require(burnAmount > 0, 'Treasury: cannot purchase bonds with zero amount');
 
+        uint256 mintBondAmount = burnAmount.mul(1e18).div(bondPriceOnONC);
         IBasisAsset(cash).burnFrom(msg.sender, burnAmount);
         IBasisAsset(bond).mint(msg.sender, mintBondAmount);
         accumulatedDebt = accumulatedDebt.sub(mintBondAmount);
@@ -261,17 +259,14 @@ contract Treasury is ContractGuard, Epoch {
         emit BoughtBonds(msg.sender, burnAmount);
     }
 
-    function redeemBonds(uint256 amount, uint256 targetPrice)
+    function redeemBonds(uint256 amount)
         external
         onlyOneBlock
         checkMigration
         checkStartTime
         checkOperator
     {
-        require(amount > 0, 'Treasury: cannot redeem bonds with zero amount');
-
         uint256 cashPrice = _getCashPrice(oracle);
-        require(cashPrice == targetPrice, 'Treasury: cash price moved');
         require(
             cashPrice > cashPriceCeiling, // price > $1.05
             'Treasury: cashPrice not eligible for bond purchase'
@@ -280,16 +275,15 @@ contract Treasury is ContractGuard, Epoch {
             IERC20(cash).balanceOf(address(this)) >= amount,
             'Treasury: treasury has no more budget'
         );
+        uint256 redeemAmount = Math.min(accumulatedSeigniorage, amount);
+        require(redeemAmount > 0, 'Treasury: cannot redeem bonds with zero amount');
 
-        accumulatedSeigniorage = accumulatedSeigniorage.sub(
-            Math.min(accumulatedSeigniorage, amount)
-        );
-
-        IBasisAsset(bond).burnFrom(msg.sender, amount);
-        IERC20(cash).safeTransfer(msg.sender, amount);
+        accumulatedSeigniorage = accumulatedSeigniorage.sub(redeemAmount);
+        IBasisAsset(bond).burnFrom(msg.sender, redeemAmount);
+        IERC20(cash).safeTransfer(msg.sender, redeemAmount);
         _updateCashPrice();
 
-        emit RedeemedBonds(msg.sender, amount);
+        emit RedeemedBonds(msg.sender, redeemAmount);
     }
 
     function allocateSeigniorage()
