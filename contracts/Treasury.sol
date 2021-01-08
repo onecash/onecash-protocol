@@ -351,7 +351,7 @@ contract Treasury is ContractGuard, Epoch {
 
         // ======================== BIP-4
         uint256 treasuryReserve = Math.min(
-            seigniorage,
+            seigniorage.div(2),                 // only 50% inflation to treasury
             IERC20(bond).totalSupply().sub(accumulatedSeigniorage)
         );
         if (treasuryReserve > 0) {
