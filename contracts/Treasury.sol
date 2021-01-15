@@ -247,7 +247,7 @@ contract Treasury is ContractGuard, Epoch {
 
         uint256 burnAmount = Math.min(
             amount,
-            accumulatedDebt.mul(1e18).mul(bondPriceOnONC)
+            accumulatedDebt.mul(bondPriceOnONC).div(1e18)
         );
         require(burnAmount > 0, 'Treasury: cannot purchase bonds with zero amount');
 
