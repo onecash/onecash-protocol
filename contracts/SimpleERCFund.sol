@@ -11,6 +11,25 @@ contract SimpleERCFund is ISimpleERCFund, Operator {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
+    address public devFund;
+    address public opFund;
+
+    constructor(
+        address _devFund, 
+        address _opFund
+    ) public {
+        devFund = _devFund;
+        opFund = _opFund;
+    }
+
+    function setDevFund(address _devFund) public onlyOperator {
+        devFund = _devFund;
+    }
+
+    function setOpFund(address _opFund) public onlyOperator {
+        opFund = _opFund;
+    }
+
     function deposit(
         address token,
         uint256 amount,
@@ -18,10 +37,8 @@ contract SimpleERCFund is ISimpleERCFund, Operator {
     ) public override {
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
-        address devFundAddr = 0xC7da206a87d85e3f9FF06c761E540553c648bC19;
-        address appStoreFundAddr = 0x03BB6e3aa1524720bCf6c010e8c67C2ACe7522B2;
-        IERC20(token).safeTransfer(devFundAddr, amount.mul(2).div(5));      // 2% for dev
-        IERC20(token).safeTransfer(appStoreFundAddr, amount.mul(3).div(5)); // 3% for app store operation
+        IERC20(token).safeTransfer(devFund, amount.mul(4).div(7));      // 4% for dev
+        IERC20(token).safeTransfer(opFund, amount.mul(3).div(7));       // 3% for app store operation
         
         emit Deposit(msg.sender, now, reason);
     }
